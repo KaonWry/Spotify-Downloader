@@ -11,6 +11,9 @@ import requests
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, TIT2, TPE1, TPE2, TALB, TDRC, TRCK
 
+# Init ytmusicapi
+ytm = YTMusic()
+
 # Link input
 if len(sys.argv) < 2:
     spotify_link = input("Paste Spotify URL/URI here: ").strip()
@@ -124,7 +127,7 @@ def get_info(type, result):
     return track_list
 
 
-song_list = get_info(playlist_info["type"], results)
+song_list = get_info(playlist_info["type"], results)  # Processed song metadata
 
 
 # Search for song with format "Title Artist1 Artist2...", returns song url
@@ -177,12 +180,23 @@ def sanitize_filename(name):
 
 
 os.system("cls" if os.name == "nt" else "clear")
-print(f"Song{'' if len(results) == 1 else 's'} about to be downloaded")
-for song in song_list:
-    print(f"{', '.join(song['artist'])} - {song['title']}")
 
-# Init ytmusicapi
-ytm = YTMusic()
+# Listing songs about to be and already downloaded
+download = []
+not_download = []
+for song in song_list:
+    filename = f"{', '.join(song['artist'])} - {song['title']}"
+    if os.path.exists(f"output/{sanitize_filename(filename)}.mp3"):
+        not_download.append(filename)
+    else:
+        download.append(filename)
+print("Songs about to be downloaded:")
+for song in download:
+    print(song)
+print("Songs not to be downloaded: ")
+for song in not_download:
+    print(song)
+input("Click enter to continue...")
 
 # Create output directory if it doesn't exist yet
 os.makedirs("output", exist_ok=True)
@@ -191,7 +205,7 @@ i = 1
 for song in song_list:
     os.system("cls" if os.name == "nt" else "clear")
     print("Finished download:")
-    for j in range(i-1):
+    for j in range(i - 1):
         print(f'{', '.join(song_list[j]["artist"])} - {song_list[j]["title"]}')
     print(f"\nDownloading song: {i}/{len(song_list)}")
     search_result = search_song(song["title"], song["artist"])
