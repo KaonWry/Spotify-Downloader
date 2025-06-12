@@ -136,6 +136,7 @@ def embed_metadata(mp3_path, image_url, title, artist, album, release, album_art
     response = requests.get(image_url)
     image_data = response.content
 
+    # Embed song metadata
     audio.tags["TIT2"] = TIT2(encoding=3, text=title)  # Title
     audio.tags["TPE1"] = TPE1(encoding=3, text=", ".join(artist))  # Artist
     audio.tags["TPE2"] = TPE2(encoding=3, text=", ".join(album_artist))  # Album Artist
@@ -152,6 +153,8 @@ def embed_metadata(mp3_path, image_url, title, artist, album, release, album_art
             data=image_data,
         )
     )
+
+    # Save changes
     audio.save(v2_version=3)
 
 
@@ -164,7 +167,10 @@ for song in song_list:
 ytm = YTMusic()
 
 os.makedirs("output", exist_ok=True)
+i = 1
 for song in song_list:
+    os.system("cls" if os.name == "nt" else "clear")
+    print(f"Downloading song: {i}/{len(song_list)}")
     search_result = search_song(song["title"], song["artist"])
     filename = sanitize_filename(f"{', '.join(song['artist'])} - {song['title']}")
     ydl_opts = {
@@ -199,3 +205,5 @@ for song in song_list:
         song["release"],
         song["album_artist"],
     )
+
+    i += 1
