@@ -140,6 +140,10 @@ def sanitize_filename(name):
     return "".join(c for c in name if c not in r'<>:"/\|?*').strip()
 
 
+def filename(song):
+    return f"{', '.join(song['artist'])} - {song['title']}"
+
+
 if __name__ == "__main__":
 
     # Load credentials
@@ -153,7 +157,7 @@ if __name__ == "__main__":
         )
     )
 
-    # Link input if no passed arguments
+    # Manually input Spotify link if no argument passed
     if len(sys.argv) < 2:
         spotify_link = input("Paste Spotify URL/URI here: ").strip()
     else:
@@ -165,21 +169,22 @@ if __name__ == "__main__":
     if not playlist_info:
         print("Error: Invalid Spotify link format.")
         sys.exit(1)
-    results = fetch_spotify_data(
-        playlist_info["type"], playlist_info["id"]
-    )  # Raw API output
-    song_list = get_info(playlist_info["type"], results)  # Processed song metadata
-    os.system("cls" if os.name == "nt" else "clear")
+
+    # Raw API output
+    results = fetch_spotify_data(playlist_info["type"], playlist_info["id"])
+
+    # Processed song metadata
+    song_list = get_info(playlist_info["type"], results)
 
     # Listing songs about to be and already downloaded
+    os.system("cls" if os.name == "nt" else "clear")
     download = []
     not_download = []
     for song in song_list:
-        filename = f"{', '.join(song['artist'])} - {song['title']}"
-        if os.path.exists(f"output/{sanitize_filename(filename)}.mp3"):
-            not_download.append(filename)
+        if os.path.exists(f"output/{sanitize_filename(filename(song))}.mp3"):
+            not_download.append(filename(song))
         else:
-            download.append(filename)
+            download.append(filename(song))
     print("Songs about to be downloaded:")
     for song in download:
         print(song)
@@ -199,12 +204,12 @@ if __name__ == "__main__":
         print("Finished processing:")
         for j in range(i - 1):
             print(f'{', '.join(song_list[j]["artist"])} - {song_list[j]["title"]}')
-        filename = f"{', '.join(song['artist'])} - {song['title']}"
-        print(f"\nDownloading song: {filename} ({i}/{len(song_list)})")
+        print(f"\nDownloading song: {filename(song)} ({i}/{len(song_list)})")
         search_result = search_song(song["title"], song["artist"])
+        sanitized = sanitize_filename(filename(song))
         ydl_opts = {
             "format": "bestaudio/best",
-            "outtmpl": f"output/{sanitize_filename(filename)}.%(ext)s",
+            "outtmpl": f"output/{sanitized}.%(ext)s",
             "quiet": True,
             "no_warnings": True,
             "logtostderr": False,
@@ -217,16 +222,16 @@ if __name__ == "__main__":
             ],
         }
 
-        if os.path.exists(f"output/{sanitize_filename(filename)}.mp3"):
+        if os.path.exists(f"output/{sanitized}.mp3"):
             print(
-                f"File exists: {f'{sanitize_filename(filename)}.mp3'} — Skipping download, updating metadata..."
+                f"File exists: {f'{sanitized}.mp3'} — Skipping download, updating metadata..."
             )
         else:
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([search_result])
 
         embed_metadata(
-            f"output/{sanitize_filename(filename)}.mp3",
+            f"output/{sanitized}.mp3",
             song["album_cover"],
             song["title"],
             song["artist"],
