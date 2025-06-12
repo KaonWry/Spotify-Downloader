@@ -5,7 +5,10 @@ from urllib.parse import urlparse
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from ytmusicapi import YTMusic
-
+from yt_dlp import YoutubeDL
+import requests
+from mutagen.id3 import ID3, APIC, TIT2, TPE1, TALB
+from mutagen.mp3 import MP3
 
 # Init ytmusicapi
 ytm = YTMusic()
@@ -50,11 +53,11 @@ playlist_info = parse_spotify_link(spotify_link)
 
 def fetch_spotify_data(type, id):
     if type == "playlist":
-        result = sp.playlist_items(id)  # Playlist
+        result = sp.playlist_items(id)
     elif type == "album":
-        result = sp.album(id)  # Album
+        result = sp.album(id)
     elif type == "track":
-        result = sp.track(id)  # Single track
+        result = sp.track(id)
     else:
         raise ValueError(f"Unsupported link type: {type}")
 
@@ -72,7 +75,6 @@ def get_info(type, result):
             track_info = {
                 "title": item["track"]["name"],
                 "artist": [artist["name"] for artist in item["track"]["artists"]],
-                "duration_ms": item["track"]["duration_ms"],
                 "album": item["track"]["album"]["name"],
                 "album_cover": item["track"]["album"]["images"][0]["url"],
             }
@@ -83,7 +85,6 @@ def get_info(type, result):
             track_info = {
                 "title": item["name"],
                 "artist": [artist["name"] for artist in item["artists"]],
-                "duration_ms": item["duration_ms"],
                 "album": result["name"],
                 "album_cover": result["images"][0]["url"],
             }
@@ -93,7 +94,6 @@ def get_info(type, result):
         track_info = {
             "title": result["name"],
             "artist": [artist["name"] for artist in result["artists"]],
-            "duration_ms": result["duration_ms"],
             "album": result["album"]["name"],
             "album_cover": result["album"]["images"][0]["url"],
         }
@@ -105,6 +105,7 @@ def get_info(type, result):
 song_list = get_info(playlist_info["type"], results)
 
 
+# Search for song with format "Title Artist1 Artist2...", returns song url
 def search_song(title, artist):
     query = f"{title} {' '.join(artist)}"
     search_results = ytm.search(query, filter="songs")
@@ -116,6 +117,60 @@ def search_song(title, artist):
     return f"https://music.youtube.com/watch?v={best_match['videoId']}"
 
 
+# Remove illegal characters in filenames
+def sanitize_filename(name):
+    return "".join(c for c in name if c not in r'<>:"/\|?*').strip()
+
+
+def embed_metadata(mp3_path, image_url, title, artist, album):
+    audio = MP3(mp3_path, ID3=ID3)
+
+    # Download image from Spotify
+    response = requests.get(image_url)
+    image_data = response.content
+
+    audio.tags["TIT2"] = TIT2(encoding=3, text=title)  # Title
+    audio.tags["TPE1"] = TPE1(encoding=3, text=", ".join(artist))  # Artist
+    audio.tags["TALB"] = TALB(encoding=3, text=album)  # Album
+
+    # Embed the image
+    audio.tags.add(
+        APIC(
+            encoding=3,  # UTF-8
+            mime="image/jpeg",  # or image/png based on content-type
+            type=3,  # Cover (front)
+            desc="Cover",
+            data=image_data,
+        )
+    )
+    audio.save(v2_version=3)
+
+
+os.makedirs("output", exist_ok=True)
 for song in song_list:
     search_result = search_song(song["title"], song["artist"])
-    print(search_result)
+    filename = sanitize_filename(f"{', '.join(song['artist'])} - {song['title']}")
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "outtmpl": f"output/{filename}.%(ext)s",
+        "quiet": True,
+        "no_warnings": True,
+        "logtostderr": False,
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }
+        ],
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        ydl.download([search_result])
+
+    embed_metadata(
+        f"output/{filename}.mp3",
+        song["album_cover"],
+        song["title"],
+        song["artist"],
+        song["album"],
+    )
