@@ -7,11 +7,8 @@ from spotipy.oauth2 import SpotifyOAuth
 from ytmusicapi import YTMusic
 from yt_dlp import YoutubeDL
 import requests
-from mutagen.id3 import ID3, APIC, TIT2, TPE1, TALB
 from mutagen.mp3 import MP3
-
-# Init ytmusicapi
-ytm = YTMusic()
+from mutagen.id3 import ID3, APIC, TIT2, TPE1, TPE2, TALB, TDRC
 
 # Link input
 if len(sys.argv) < 2:
@@ -64,7 +61,9 @@ def fetch_spotify_data(type, id):
     return result
 
 
-results = fetch_spotify_data(playlist_info["type"], playlist_info["id"])
+results = fetch_spotify_data(
+    playlist_info["type"], playlist_info["id"]
+)  # Raw API output
 
 
 # Get song info
@@ -77,6 +76,10 @@ def get_info(type, result):
                 "artist": [artist["name"] for artist in item["track"]["artists"]],
                 "album": item["track"]["album"]["name"],
                 "album_cover": item["track"]["album"]["images"][0]["url"],
+                "release": item["track"]["album"]["release_date"],
+                "album_artist": [
+                    artist["name"] for artist in item["track"]["album"]["artists"]
+                ],
             }
             track_list.append(track_info)
 
@@ -87,6 +90,8 @@ def get_info(type, result):
                 "artist": [artist["name"] for artist in item["artists"]],
                 "album": result["name"],
                 "album_cover": result["images"][0]["url"],
+                "release": result["release_date"],
+                "album_artist": [artist["name"] for artist in result["artists"]],
             }
             track_list.append(track_info)
 
@@ -96,6 +101,8 @@ def get_info(type, result):
             "artist": [artist["name"] for artist in result["artists"]],
             "album": result["album"]["name"],
             "album_cover": result["album"]["images"][0]["url"],
+            "release": result["album"]["release_date"],
+            "album_artist": [artist["name"] for artist in result["album"]["artists"]],
         }
         track_list.append(track_info)
 
@@ -122,7 +129,7 @@ def sanitize_filename(name):
     return "".join(c for c in name if c not in r'<>:"/\|?*').strip()
 
 
-def embed_metadata(mp3_path, image_url, title, artist, album):
+def embed_metadata(mp3_path, image_url, title, artist, album, release, album_artist):
     audio = MP3(mp3_path, ID3=ID3)
 
     # Download image from Spotify
@@ -131,13 +138,15 @@ def embed_metadata(mp3_path, image_url, title, artist, album):
 
     audio.tags["TIT2"] = TIT2(encoding=3, text=title)  # Title
     audio.tags["TPE1"] = TPE1(encoding=3, text=", ".join(artist))  # Artist
+    audio.tags["TPE2"] = TPE2(encoding=3, text=", ".join(album_artist))  # Album Artist
     audio.tags["TALB"] = TALB(encoding=3, text=album)  # Album
+    audio.tags["TDRC"] = TDRC(encoding=3, text=release.split("-")[0])  # Year of release
 
     # Embed the image
     audio.tags.add(
         APIC(
             encoding=3,  # UTF-8
-            mime="image/jpeg",  # or image/png based on content-type
+            mime="image/jpeg",
             type=3,  # Cover (front)
             desc="Cover",
             data=image_data,
@@ -145,6 +154,14 @@ def embed_metadata(mp3_path, image_url, title, artist, album):
     )
     audio.save(v2_version=3)
 
+
+os.system("cls" if os.name == "nt" else "clear")
+print(f"Song{'' if len(results) == 1 else 's'} about to be downloaded")
+for song in song_list:
+    print(f"{', '.join(song['artist'])} - {song['title']}")
+
+# Init ytmusicapi
+ytm = YTMusic()
 
 os.makedirs("output", exist_ok=True)
 for song in song_list:
@@ -164,8 +181,14 @@ for song in song_list:
             }
         ],
     }
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([search_result])
+
+    if os.path.exists(f"output/{filename}.mp3"):
+        print(
+            f"File exists: {f'{filename}.mp3'} — Skipping download, updating metadata..."
+        )
+    else:
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([search_result])
 
     embed_metadata(
         f"output/{filename}.mp3",
@@ -173,4 +196,6 @@ for song in song_list:
         song["title"],
         song["artist"],
         song["album"],
+        song["release"],
+        song["album_artist"],
     )
