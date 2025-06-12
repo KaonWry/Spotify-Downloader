@@ -4,11 +4,12 @@ from dotenv import load_dotenv
 from urllib.parse import urlparse
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.exceptions import SpotifyException
 from ytmusicapi import YTMusic
 from yt_dlp import YoutubeDL
 import requests
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, TIT2, TPE1, TPE2, TALB, TDRC
+from mutagen.id3 import ID3, APIC, TIT2, TPE1, TPE2, TALB, TDRC, TRCK
 
 # Link input
 if len(sys.argv) < 2:
@@ -47,18 +48,29 @@ def parse_spotify_link(link):
 
 playlist_info = parse_spotify_link(spotify_link)
 
+# Error handling for invalid link
+if not playlist_info:
+    print("Error: Invalid Spotify link format.")
+    sys.exit(1)
+
 
 def fetch_spotify_data(type, id):
-    if type == "playlist":
-        result = sp.playlist_items(id)
-    elif type == "album":
-        result = sp.album(id)
-    elif type == "track":
-        result = sp.track(id)
-    else:
-        raise ValueError(f"Unsupported link type: {type}")
-
-    return result
+    try:
+        if type == "playlist":
+            result = sp.playlist_items(id)
+        elif type == "album":
+            result = sp.album(id)
+        elif type == "track":
+            result = sp.track(id)
+        else:
+            raise ValueError(f"Unsupported link type: {type}")
+        return result
+    except SpotifyException as e:
+        print(
+            f"Error: Unable to fetch {type} with ID {id}. It may be private, deleted, or invalid."
+        )
+        print(f"Details: {e}")
+        sys.exit(1)
 
 
 results = fetch_spotify_data(
@@ -80,6 +92,7 @@ def get_info(type, result):
                 "album_artist": [
                     artist["name"] for artist in item["track"]["album"]["artists"]
                 ],
+                "track_number": item["track"]["track_number"],
             }
             track_list.append(track_info)
 
@@ -92,6 +105,7 @@ def get_info(type, result):
                 "album_cover": result["images"][0]["url"],
                 "release": result["release_date"],
                 "album_artist": [artist["name"] for artist in result["artists"]],
+                "track_number": item["track_number"],
             }
             track_list.append(track_info)
 
@@ -103,6 +117,7 @@ def get_info(type, result):
             "album_cover": result["album"]["images"][0]["url"],
             "release": result["album"]["release_date"],
             "album_artist": [artist["name"] for artist in result["album"]["artists"]],
+            "track_number": result["track_number"],
         }
         track_list.append(track_info)
 
@@ -124,12 +139,9 @@ def search_song(title, artist):
     return f"https://music.youtube.com/watch?v={best_match['videoId']}"
 
 
-# Remove illegal characters in filenames
-def sanitize_filename(name):
-    return "".join(c for c in name if c not in r'<>:"/\|?*').strip()
-
-
-def embed_metadata(mp3_path, image_url, title, artist, album, release, album_artist):
+def embed_metadata(
+    mp3_path, image_url, title, artist, album, release, album_artist, track_number
+):
     audio = MP3(mp3_path, ID3=ID3)
 
     # Download image from Spotify
@@ -139,9 +151,10 @@ def embed_metadata(mp3_path, image_url, title, artist, album, release, album_art
     # Embed song metadata
     audio.tags["TIT2"] = TIT2(encoding=3, text=title)  # Title
     audio.tags["TPE1"] = TPE1(encoding=3, text=", ".join(artist))  # Artist
-    audio.tags["TPE2"] = TPE2(encoding=3, text=", ".join(album_artist))  # Album Artist
+    audio.tags["TPE2"] = TPE2(encoding=3, text=", ".join(album_artist))  # Album artist
     audio.tags["TALB"] = TALB(encoding=3, text=album)  # Album
     audio.tags["TDRC"] = TDRC(encoding=3, text=release.split("-")[0])  # Year of release
+    audio.tags["TRCK"] = TRCK(encoding=3, text=str(track_number))  # Track number
 
     # Embed the image
     audio.tags.add(
@@ -158,6 +171,11 @@ def embed_metadata(mp3_path, image_url, title, artist, album, release, album_art
     audio.save(v2_version=3)
 
 
+# Remove illegal characters in filenames
+def sanitize_filename(name):
+    return "".join(c for c in name if c not in r'<>:"/\|?*').strip()
+
+
 os.system("cls" if os.name == "nt" else "clear")
 print(f"Song{'' if len(results) == 1 else 's'} about to be downloaded")
 for song in song_list:
@@ -166,11 +184,16 @@ for song in song_list:
 # Init ytmusicapi
 ytm = YTMusic()
 
+# Create output directory if it doesn't exist yet
 os.makedirs("output", exist_ok=True)
+
 i = 1
 for song in song_list:
     os.system("cls" if os.name == "nt" else "clear")
-    print(f"Downloading song: {i}/{len(song_list)}")
+    print("Finished download:")
+    for j in range(i):
+        print(f'{', '.join(song_list[j]["artist"])} - {song_list[j]["title"]}')
+    print(f"\nDownloading song: {i}/{len(song_list)}")
     search_result = search_song(song["title"], song["artist"])
     filename = sanitize_filename(f"{', '.join(song['artist'])} - {song['title']}")
     ydl_opts = {
@@ -204,6 +227,7 @@ for song in song_list:
         song["album"],
         song["release"],
         song["album_artist"],
+        song["track_number"],
     )
 
     i += 1
