@@ -191,7 +191,7 @@ i = 1
 for song in song_list:
     os.system("cls" if os.name == "nt" else "clear")
     print("Finished download:")
-    for j in range(i):
+    for j in range(i-1):
         print(f'{', '.join(song_list[j]["artist"])} - {song_list[j]["title"]}')
     print(f"\nDownloading song: {i}/{len(song_list)}")
     search_result = search_song(song["title"], song["artist"])
