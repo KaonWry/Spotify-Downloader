@@ -1,19 +1,22 @@
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
-from urllib.parse import urlparse
+import os
 import sys
 from dotenv import load_dotenv
-import os
+from urllib.parse import urlparse
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
 from ytmusicapi import YTMusic
 
-ytmusic = YTMusic()
 
+# Init ytmusicapi
+ytm = YTMusic()
+
+# Link input
 if len(sys.argv) < 2:
-    print("Usage: python app.py <spotify_link>")
-    sys.exit(1)
+    spotify_link = input("Paste Spotify URL/URI here: ").strip()
+else:
+    spotify_link = sys.argv[1]
 
-spotify_link = sys.argv[1]
-
+# Load credentials
 load_dotenv()
 sp = spotipy.Spotify(
     auth_manager=SpotifyOAuth(
@@ -47,11 +50,11 @@ playlist_info = parse_spotify_link(spotify_link)
 
 def fetch_spotify_data(type, id):
     if type == "playlist":
-        result = sp.playlist_items(id)  # get tracks from playlist
+        result = sp.playlist_items(id)  # Playlist
     elif type == "album":
-        result = sp.album(id)  # get tracks from album
+        result = sp.album(id)  # Album
     elif type == "track":
-        result = sp.track(id)  # single track metadata
+        result = sp.track(id)  # Single track
     else:
         raise ValueError(f"Unsupported link type: {type}")
 
@@ -61,6 +64,7 @@ def fetch_spotify_data(type, id):
 results = fetch_spotify_data(playlist_info["type"], playlist_info["id"])
 
 
+# Get song info
 def get_info(type, result):
     track_list = []
     if type == "playlist":
@@ -70,6 +74,7 @@ def get_info(type, result):
                 "artist": [artist["name"] for artist in item["track"]["artists"]],
                 "duration_ms": item["track"]["duration_ms"],
                 "album": item["track"]["album"]["name"],
+                "album_cover": item["track"]["album"]["images"][0]["url"],
             }
             track_list.append(track_info)
 
@@ -80,6 +85,7 @@ def get_info(type, result):
                 "artist": [artist["name"] for artist in item["artists"]],
                 "duration_ms": item["duration_ms"],
                 "album": result["name"],
+                "album_cover": result["images"][0]["url"],
             }
             track_list.append(track_info)
 
@@ -89,6 +95,7 @@ def get_info(type, result):
             "artist": [artist["name"] for artist in result["artists"]],
             "duration_ms": result["duration_ms"],
             "album": result["album"]["name"],
+            "album_cover": result["album"]["images"][0]["url"],
         }
         track_list.append(track_info)
 
@@ -99,23 +106,16 @@ song_list = get_info(playlist_info["type"], results)
 
 
 def search_song(title, artist):
-    query = f"{title} {artist}"
-    search_results = ytmusic.search(query, filter="songs")
+    query = f"{title} {' '.join(artist)}"
+    search_results = ytm.search(query, filter="songs")
 
     if not search_results:
         return None
 
     best_match = search_results[0]
-    return {
-        "videoId": best_match["videoId"],
-        "title": best_match["title"],
-        "artists": [a["name"] for a in best_match["artists"]],
-        "album": best_match["album"]["name"] if best_match.get("album") else None,
-        "duration": best_match["duration"],
-        "url": f"https://music.youtube.com/watch?v={best_match['videoId']}",
-    }
+    return f"https://music.youtube.com/watch?v={best_match['videoId']}"
 
 
 for song in song_list:
-    search_result = search_song(song["title"], song["title"])
+    search_result = search_song(song["title"], song["artist"])
     print(search_result)
