@@ -147,7 +147,7 @@ def filename(song):
 if __name__ == "__main__":
 
     # Load credentials
-    load_dotenv()
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
     sp = spotipy.Spotify(
         auth_manager=SpotifyOAuth(
             client_id=os.getenv("CLIENT_ID"),
