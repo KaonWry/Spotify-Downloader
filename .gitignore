@@ -1,5 +1,5 @@
-/env
-/.cache
 /idk
-/.env
 /output
+/py/.cache
+/py/.env
+/py/env
