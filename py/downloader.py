@@ -33,9 +33,29 @@ def parse_spotify_link(link):
 def fetch_spotify_data(sp, type, id):
     try:
         if type == "playlist":
-            result = sp.playlist_items(id)
+            all_items = []
+            offset = 0
+            limit = 100
+            while True:
+                response = sp.playlist_items(id, offset=offset, limit=limit)
+                all_items.extend(response["items"])
+                if response["next"] is None:
+                    break
+                offset += limit
+            result = {"items": all_items}
         elif type == "album":
-            result = sp.album(id)
+            album = sp.album(id)
+            all_tracks = []
+            offset = 0
+            limit = 50
+            while True:
+                response = sp.album_tracks(id, offset=offset, limit=limit)
+                all_tracks.extend(response["items"])
+                if response["next"] is None:
+                    break
+                offset += limit
+            album["tracks"]["items"] = all_tracks
+            result = album
         elif type == "track":
             result = sp.track(id)
         else:
@@ -102,7 +122,7 @@ def search_song(title, artist, ytm):
     if not search_results:
         return None
 
-    return search_results[0]['videoId']
+    return search_results[0]["videoId"]
 
 
 def embed_metadata(

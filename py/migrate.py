@@ -4,7 +4,7 @@ import sys
 from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from ytmusicapi import YTMusic, OAuthCredentials
+from ytmusicapi import YTMusic
 import argparse
 
 if __name__ == "__main__":
@@ -33,9 +33,11 @@ if __name__ == "__main__":
 
     # Raw API output
     results = fetch_spotify_data(sp, playlist_info["type"], playlist_info["id"])
+    print(len(results["items"]))
 
     # Processed song metadata
     song_list = get_info(playlist_info["type"], results)
+    print(len(song_list))
 
     ytm = YTMusic("browser.json")
     song_id_list = []
@@ -43,6 +45,7 @@ if __name__ == "__main__":
         search_result = search_song(song["title"], song["artist"], ytm)
         print(f"{song['title']}-{song['artist']}: {search_result}")
         song_id_list.append(search_result)
+    print(len(song_id_list))
 
     playlist_id = ytm.create_playlist(
         args.playlist_name, "Migrated Spotify Playlist", "PUBLIC", song_id_list
