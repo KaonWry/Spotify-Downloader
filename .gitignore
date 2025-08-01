@@ -5,3 +5,5 @@
 /py/env
 /py/output
 /py/__pycache__
+/.vscode
+/py/browser.json

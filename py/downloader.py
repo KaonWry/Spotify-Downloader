@@ -102,7 +102,7 @@ def search_song(title, artist, ytm):
     if not search_results:
         return None
 
-    return f"https://music.youtube.com/watch?v={search_results[0]['videoId']}"
+    return search_results[0]['videoId']
 
 
 def embed_metadata(
@@ -232,7 +232,7 @@ if __name__ == "__main__":
         max_retries = 5
         for attempt in range(1, max_retries + 1):
             try:
-                search_result = search_song(song["title"], song["artist"], ytm)
+                search_result = f"https://music.youtube.com/watch?v={search_song(song["title"], song["artist"], ytm)}"
                 if not search_result:
                     raise Exception("No search result found on YouTube Music.")
                 if os.path.exists(f"output/{sanitized}.mp3"):

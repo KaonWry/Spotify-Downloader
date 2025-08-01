@@ -4,10 +4,17 @@ import sys
 from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from ytmusicapi import YTMusic
-
+from ytmusicapi import YTMusic, OAuthCredentials
+import argparse
 
 if __name__ == "__main__":
+    # CLI Argument parsing
+    parser = argparse.ArgumentParser(
+        description="Migrate a Spotify playlist to YouTube Music"
+    )
+    parser.add_argument("spotify_link", help="Spotify playlist URL or URI")
+    parser.add_argument("playlist_name", help="Name of the new YouTube playlist")
+    args = parser.parse_args()
     # Load credentials
     load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
     sp = spotipy.Spotify(
@@ -18,16 +25,8 @@ if __name__ == "__main__":
             scope="playlist-read-private",
         )
     )
-
-    # Manually input Spotify link if no argument passed
-    if len(sys.argv) < 2:
-        spotify_link = input("Paste Spotify URL/URI here: ").strip()
-    else:
-        spotify_link = sys.argv[1]
-
-    playlist_info = parse_spotify_link(spotify_link)
-
-    # Error handling for invalid link
+    # Extract Spotify playlist info
+    playlist_info = parse_spotify_link(args.spotify_link)
     if not playlist_info:
         print("Error: Invalid Spotify link format.")
         sys.exit(1)
@@ -38,8 +37,14 @@ if __name__ == "__main__":
     # Processed song metadata
     song_list = get_info(playlist_info["type"], results)
 
-    ytm = YTMusic()
-
+    ytm = YTMusic("browser.json")
+    song_id_list = []
     for i, song in enumerate(song_list, start=1):
         search_result = search_song(song["title"], song["artist"], ytm)
         print(f"{song['title']}-{song['artist']}: {search_result}")
+        song_id_list.append(search_result)
+
+    playlist_id = ytm.create_playlist(
+        args.playlist_name, "Migrated Spotify Playlist", "PUBLIC", song_id_list
+    )
+    print(playlist_id)
