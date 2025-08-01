@@ -9,7 +9,8 @@ from ytmusicapi import YTMusic
 from yt_dlp import YoutubeDL
 import requests
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, TIT2, TPE1, TPE2, TALB, TDRC, TRCK
+from mutagen.id3 import ID3, APIC, TIT2, TPE1, TPE2, TALB, TDRC, TRCK  # type: ignore
+import time
 
 
 def parse_spotify_link(link):
@@ -29,7 +30,7 @@ def parse_spotify_link(link):
     return None
 
 
-def fetch_spotify_data(type, id):
+def fetch_spotify_data(sp, type, id):
     try:
         if type == "playlist":
             result = sp.playlist_items(id)
@@ -94,7 +95,7 @@ def get_info(type, result):
 
 
 # Search for song with format "Title Artist1 Artist2...", returns song url
-def search_song(title, artist):
+def search_song(title, artist, ytm):
     query = f"{title} {' '.join(artist)}"
     search_results = ytm.search(query, filter="songs")
 
@@ -114,15 +115,21 @@ def embed_metadata(
     image_data = response.content
 
     # Embed song metadata
-    audio.tags["TIT2"] = TIT2(encoding=3, text=title)  # Title
-    audio.tags["TPE1"] = TPE1(encoding=3, text=", ".join(artist))  # Artist
-    audio.tags["TPE2"] = TPE2(encoding=3, text=", ".join(album_artist))  # Album artist
-    audio.tags["TALB"] = TALB(encoding=3, text=album)  # Album
-    audio.tags["TDRC"] = TDRC(encoding=3, text=release.split("-")[0])  # Year of release
-    audio.tags["TRCK"] = TRCK(encoding=3, text=str(track_number))  # Track number
+    # Title
+    audio.tags["TIT2"] = TIT2(encoding=3, text=title)  # type: ignore
+    # Artist
+    audio.tags["TPE1"] = TPE1(encoding=3, text=", ".join(artist))  # type: ignore
+    # Album artist
+    audio.tags["TPE2"] = TPE2(encoding=3, text=", ".join(album_artist))  # type: ignore
+    # Album
+    audio.tags["TALB"] = TALB(encoding=3, text=album)  # type: ignore
+    # Year of release
+    audio.tags["TDRC"] = TDRC(encoding=3, text=release.split("-")[0])  # type: ignore
+    # Track number
+    audio.tags["TRCK"] = TRCK(encoding=3, text=str(track_number))  # type: ignore
 
     # Embed album cover
-    audio.tags.add(
+    audio.tags.add(  # type: ignore
         APIC(
             encoding=3,
             mime="image/jpeg",
@@ -147,7 +154,7 @@ def filename(song):
 if __name__ == "__main__":
 
     # Load credentials
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
     sp = spotipy.Spotify(
         auth_manager=SpotifyOAuth(
             client_id=os.getenv("CLIENT_ID"),
@@ -171,7 +178,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Raw API output
-    results = fetch_spotify_data(playlist_info["type"], playlist_info["id"])
+    results = fetch_spotify_data(sp, playlist_info["type"], playlist_info["id"])
 
     # Processed song metadata
     song_list = get_info(playlist_info["type"], results)
@@ -203,9 +210,8 @@ if __name__ == "__main__":
         os.system("cls" if os.name == "nt" else "clear")
         print("Finished processing:")
         for j in range(i - 1):
-            print(f'{', '.join(song_list[j]["artist"])} - {song_list[j]["title"]}')
+            print(f'{", ".join(song_list[j]["artist"])} - {song_list[j]["title"]}')
         print(f"\nDownloading song: {filename(song)} ({i}/{len(song_list)})")
-        search_result = search_song(song["title"], song["artist"])
         sanitized = sanitize_filename(filename(song))
         ydl_opts = {
             "format": "bestaudio/best",
@@ -222,21 +228,41 @@ if __name__ == "__main__":
             ],
         }
 
-        if os.path.exists(f"output/{sanitized}.mp3"):
-            print(
-                f"File exists: {f'{sanitized}.mp3'} — Skipping download, updating metadata..."
-            )
-        else:
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([search_result])
+        # Retry logic for search and download
+        max_retries = 5
+        for attempt in range(1, max_retries + 1):
+            try:
+                search_result = search_song(song["title"], song["artist"], ytm)
+                if not search_result:
+                    raise Exception("No search result found on YouTube Music.")
+                if os.path.exists(f"output/{sanitized}.mp3"):
+                    print(
+                        f"File exists: {sanitized}.mp3 — Skipping download, updating metadata..."
+                    )
+                else:
+                    with YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([search_result])
+                break  # Success, exit retry loop
+            except Exception as e:
+                print(f"Attempt {attempt} failed: {e}")
+                if attempt < max_retries:
+                    print("Retrying in 3 seconds...")
+                    time.sleep(3)
+                else:
+                    print(
+                        f"Failed to download {filename(song)} after {max_retries} attempts. Skipping."
+                    )
+                    break  # Give up after max_retries
 
-        embed_metadata(
-            f"output/{sanitized}.mp3",
-            song["album_cover"],
-            song["title"],
-            song["artist"],
-            song["album"],
-            song["release"],
-            song["album_artist"],
-            song["track_number"],
-        )
+        # Only embed metadata if file exists
+        if os.path.exists(f"output/{sanitized}.mp3"):
+            embed_metadata(
+                f"output/{sanitized}.mp3",
+                song["album_cover"],
+                song["title"],
+                song["artist"],
+                song["album"],
+                song["release"],
+                song["album_artist"],
+                song["track_number"],
+            )

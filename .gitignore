@@ -4,3 +4,4 @@
 /.env
 /py/env
 /py/output
+/py/__pycache__
