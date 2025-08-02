@@ -43,7 +43,7 @@ if __name__ == "__main__":
     song_id_list = []
     for i, song in enumerate(song_list, start=1):
         search_result = search_song(song["title"], song["artist"], ytm)
-        print(f"{song['title']}-{song['artist']}: {search_result}")
+        print(f"{i}/{len(song_list)}: {song['title']}-{song['artist']}: {search_result}")
         song_id_list.append(search_result)
     print(len(song_id_list))
 
