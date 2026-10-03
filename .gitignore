@@ -7,3 +7,4 @@
 /py/__pycache__
 /.vscode
 /py/browser.json
+.cache

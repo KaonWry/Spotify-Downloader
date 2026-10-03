@@ -239,6 +239,7 @@ if __name__ == "__main__":
             "quiet": True,
             "no_warnings": True,
             "logtostderr": False,
+            "cookiesfrombrowser": ("firefox", "h115m6un.dev-edition-default"),
             "postprocessors": [
                 {
                     "key": "FFmpegExtractAudio",
